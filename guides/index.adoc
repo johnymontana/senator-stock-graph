@@ -1,0 +1,53 @@
+= Senator Stock Graph
+
+
+== Senator Stock Purchases
+
+
+[source,cypher]
+----
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/senators_tx.csv" AS row
+MERGE (s:Senator {name: row.full_name})
+MERGE (st:Stock {ticker: row.ticker})
+FOREACH (x IN CASE WHEN row.order_type = "Purchase" THEN [1] ELSE [] END |
+MERGE (s)-[p:PURCHASED]->(st)
+ON CREATE SET p.amount = toInteger(row.tx_estimate)
+ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+)
+FOREACH (x IN CASE WHEN row.order_type CONTAINS "Sale" THEN [1] ELSE [] END |
+MERGE (s)-[p:SOLD]->(st)
+ON CREATE SET p.amount = toInteger(row.tx_estimate)
+ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+)
+----
+
+== Company Details
+
+[source,cypher]
+----
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/companies.csv" AS row 
+WITH row WHERE row.symbol IS NOT NULL AND row.industry IS NOT NULL AND row.country IS NOT NULL AND row.state IS NOT NULL
+MERGE (s:Stock {ticker: row.symbol})
+SET s.name = row.shortName,
+    s.summary = row.longBusinessSummary,
+    s.logo    = row.logo_url
+MERGE (i:Industry {name: row.industry})
+MERGE (i)<-[:IN_INDUSTRY]-(s)
+MERGE (c:Country {name: row.country})
+MERGE (c)-[:IN_COUNTRY]-(s)
+MERGE (st:State {name: row.state})
+MERGE (st)<-[:IN_STATE]-(s)
+----
+
+== Senator Details
+
+[source,cypher]
+----
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row 
+WITH row WHERE row.type = "sen"
+
+MATCH (s:Senator {name: row.full_name})
+SET s.party = row.party 
+MERGE (st:State {name: row.state})
+MERGE (st)<-[:REPRESENTS]-(s)
+----
