@@ -1,7 +1,45 @@
 = Senator Stock Graph
 
+== US Senate Financial Transactions
 
-== Senator Stock Purchases
+This guide explores importing and querying data on financial transactions by US Senators.
+
+* Importing CSV files using Cypher's `LOAD CSV`
+* Querying the dataset using Cypher
+* Visual Exploration With Neo4j Bloom
+
+== LOAD CSV
+
+`LOAD CSV` is a Cypher feature that allows us to load data into Neo4j from flat files. 
+
+It will parse a CSV file and yield "row" objects that we can then manipulate using Cypher, typically describing the patterns we want to create in the graph. Let's take a look at US legislator data in CSV format:
+
+[source,cypher]
+----
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row 
+RETURN row
+----
+
+== Importing Senator Details
+
+Let's import Senator details into the graph.
+
+First, we'll filter for only senators `WHERE row.type = "sen"` then use the `MERGE` Cypher command to add data without creating duplicates.
+
+[source,cypher]
+----
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row 
+WITH row WHERE row.type = "sen"
+
+MERGE (s:Senator {name: row.full_name})
+SET s.party = row.party 
+MERGE (st:State {name: row.state})
+MERGE (st)<-[:REPRESENTS]-(s)
+RETURN *
+----
+
+
+== Senator Financial Transactions
 
 
 [source,cypher]
@@ -10,18 +48,19 @@ LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senat
 MERGE (s:Senator {name: row.full_name})
 MERGE (st:Stock {ticker: row.ticker})
 FOREACH (x IN CASE WHEN row.order_type = "Purchase" THEN [1] ELSE [] END |
-MERGE (s)-[p:PURCHASED]->(st)
-ON CREATE SET p.amount = toInteger(row.tx_estimate)
-ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+  MERGE (s)-[p:PURCHASED]->(st)
+  ON CREATE SET p.amount = toInteger(row.tx_estimate)
+  ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
 )
 FOREACH (x IN CASE WHEN row.order_type CONTAINS "Sale" THEN [1] ELSE [] END |
-MERGE (s)-[p:SOLD]->(st)
-ON CREATE SET p.amount = toInteger(row.tx_estimate)
-ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+  MERGE (s)-[p:SOLD]->(st)
+  ON CREATE SET p.amount = toInteger(row.tx_estimate)
+  ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
 )
+RETURN * LIMIT 300
 ----
 
-== Company Details
+== Adding Company Details
 
 [source,cypher]
 ----
@@ -37,17 +76,86 @@ MERGE (c:Country {name: row.country})
 MERGE (c)-[:IN_COUNTRY]-(s)
 MERGE (st:State {name: row.state})
 MERGE (st)<-[:IN_STATE]-(s)
+RETURN *
 ----
 
-== Senator Details
+
+
+== Querying With Cypher
+
+Interesting questions to explore:
+
+* What stocks are your senators buying and selling?
+* What senators bought/sold the most stocks?
+* What senators are investing in companies based in their districts?
+* What are the most common industries?
+
+== What stocks are your senators buying and selling?
+
+First, let's find our senators:
 
 [source,cypher]
 ----
-LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row 
-WITH row WHERE row.type = "sen"
-
-MATCH (s:Senator {name: row.full_name})
-SET s.party = row.party 
-MERGE (st:State {name: row.state})
-MERGE (st)<-[:REPRESENTS]-(s)
+MATCH (s:Senator)-[:REPRESENTS]->(ca:State {name: "WA"})
+RETURN *
 ----
+
+Next, let's find their financial transactions:
+
+[source,cypher]
+----
+MATCH (s:Senator)-[:REPRESENTS]->(ca:State {name: "WA"})
+MATCH (s)-[:PURCHASED]->(c:Stock)
+RETURN *
+----
+
+== What senators bought/sold the most stocks?
+
+[source,cypher]
+----
+MATCH (s:Senator)-[t:PURCHASED]->(c:Stock)
+WITH s.name AS senator, SUM(t.amount) AS totalPurchase
+RETURN senator, totalPurchase ORDER BY totalPurchase DESC
+----
+
+We can also aggregate by party:
+
+[source,cypher]
+----
+MATCH (s:Senator)-[t:PURCHASED]->(c:Stock)
+WITH s.party AS party, SUM(t.amount) AS totalPurchase
+RETURN party, totalPurchase ORDER BY totalPurchase DESC
+----
+
+== What senators are investing in companies based in their districts?
+
+[source,cypher]
+----
+MATCH (s:Senator)-[t:PURCHASED]->(c:Stock)
+MATCH (s)-[:REPRESENTS]->(st:State)<-[:IN_STATE]-(c)
+RETURN *
+----
+
+== What are the most common industries?
+
+[source,cypher]
+----
+MATCH (s:Senator)-[t:PURCHASED]->(c:Stock)-[:IN_INDUSTRY]->(i:Industry)
+WITH i.name AS industry, SUM(t.amount) AS totalInvested
+RETURN * ORDER BY totalInvested DESC
+----
+
+== Visually Exploration With Neo4j Bloom
+
+Neo4j Bloom allows us to visually explore the graph without needing to write Cypher.
+
+Bloom is available in Neo4j AuraDB and Neo4j Desktop by default.
+
+== Next Steps...
+
+Can we add additional data sources and query across the combined data sets in the graph? Specifically:
+
+* Senate committees: `https://theunitedstates.io/congress-legislators/committees-current.json`
+* Committee members: `https://theunitedstates.io/congress-legislators/committee-membership-current.json`
+* Senate misconduct filings: `https://github.com/govtrack/misconduct/blob/master/misconduct-instances.csv`
+* Bill sponsorship and topics: `https://github.com/unitedstates/congress/wiki/bills`

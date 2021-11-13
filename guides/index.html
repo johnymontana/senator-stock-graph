@@ -50,24 +50,46 @@
 
 <slide class="row-fluid">
   <div class="col-sm-12">
-    <h3>Senator Stock Purchases</h3>
+    <h3>US Senate Financial Transactions</h3>
     <br/>
     <div>
-      <div class="listingblock">
+      <div class="paragraph">
+<p>This guide explores importing and querying data on financial transactions by US Senators.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Importing CSV files using Cypher&#8217;s <code>LOAD CSV</code></p>
+</li>
+<li>
+<p>Querying the dataset using Cypher</p>
+</li>
+<li>
+<p>Visual Exploration With Neo4j Bloom</p>
+</li>
+</ul>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>LOAD CSV</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p><code>LOAD CSV</code> is a Cypher feature that allows us to load data into Neo4j from flat files.</p>
+</div>
+<div class="paragraph">
+<p>It will parse a CSV file and yield "row" objects that we can then manipulate using Cypher, typically describing the patterns we want to create in the graph. Let&#8217;s take a look at US legislator data in CSV format:</p>
+</div>
+<div class="listingblock">
 <div class="content">
-<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/senators_tx.csv" AS row
-MERGE (s:Senator {name: row.full_name})
-MERGE (st:Stock {ticker: row.ticker})
-FOREACH (x IN CASE WHEN row.order_type = "Purchase" THEN [1] ELSE [] END |
-MERGE (s)-[p:PURCHASED]-&gt;(st)
-ON CREATE SET p.amount = toInteger(row.tx_estimate)
-ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
-)
-FOREACH (x IN CASE WHEN row.order_type CONTAINS "Sale" THEN [1] ELSE [] END |
-MERGE (s)-[p:SOLD]-&gt;(st)
-ON CREATE SET p.amount = toInteger(row.tx_estimate)
-ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
-)<!--/code--></pre>
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row
+RETURN row<!--/code--></pre>
 </div>
 </div>
 	</div>
@@ -78,7 +100,65 @@ ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
 
 <slide class="row-fluid">
   <div class="col-sm-12">
-    <h3>Company Details</h3>
+    <h3>Importing Senator Details</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Let&#8217;s import Senator details into the graph.</p>
+</div>
+<div class="paragraph">
+<p>First, we&#8217;ll filter for only senators <code>WHERE row.type = "sen"</code> then use the <code>MERGE</code> Cypher command to add data without creating duplicates.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row
+WITH row WHERE row.type = "sen"
+
+MERGE (s:Senator {name: row.full_name})
+SET s.party = row.party
+MERGE (st:State {name: row.state})
+MERGE (st)&lt;-[:REPRESENTS]-(s)
+RETURN *<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Senator Financial Transactions</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/senators_tx.csv" AS row
+MERGE (s:Senator {name: row.full_name})
+MERGE (st:Stock {ticker: row.ticker})
+FOREACH (x IN CASE WHEN row.order_type = "Purchase" THEN [1] ELSE [] END |
+  MERGE (s)-[p:PURCHASED]-&gt;(st)
+  ON CREATE SET p.amount = toInteger(row.tx_estimate)
+  ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+)
+FOREACH (x IN CASE WHEN row.order_type CONTAINS "Sale" THEN [1] ELSE [] END |
+  MERGE (s)-[p:SOLD]-&gt;(st)
+  ON CREATE SET p.amount = toInteger(row.tx_estimate)
+  ON MATCH SET p.amount = p.amount + toInteger(row.tx_estimate)
+)
+RETURN * LIMIT 300<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Adding Company Details</h3>
     <br/>
     <div>
       <div class="listingblock">
@@ -94,7 +174,8 @@ MERGE (i)&lt;-[:IN_INDUSTRY]-(s)
 MERGE (c:Country {name: row.country})
 MERGE (c)-[:IN_COUNTRY]-(s)
 MERGE (st:State {name: row.state})
-MERGE (st)&lt;-[:IN_STATE]-(s)<!--/code--></pre>
+MERGE (st)&lt;-[:IN_STATE]-(s)
+RETURN *<!--/code--></pre>
 </div>
 </div>
 	</div>
@@ -105,19 +186,168 @@ MERGE (st)&lt;-[:IN_STATE]-(s)<!--/code--></pre>
 
 <slide class="row-fluid">
   <div class="col-sm-12">
-    <h3>Senator Details</h3>
+    <h3>Querying With Cypher</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Interesting questions to explore:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>What stocks are your senators buying and selling?</p>
+</li>
+<li>
+<p>What senators bought/sold the most stocks?</p>
+</li>
+<li>
+<p>What senators are investing in companies based in their districts?</p>
+</li>
+<li>
+<p>What are the most common industries?</p>
+</li>
+</ul>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>What stocks are your senators buying and selling?</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>First, let&#8217;s find our senators:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[:REPRESENTS]-&gt;(ca:State {name: "WA"})
+RETURN *<!--/code--></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Next, let&#8217;s find their financial transactions:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[:REPRESENTS]-&gt;(ca:State {name: "WA"})
+MATCH (s)-[:PURCHASED]-&gt;(c:Stock)
+RETURN *<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>What senators bought/sold the most stocks?</h3>
     <br/>
     <div>
       <div class="listingblock">
 <div class="content">
-<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/johnymontana/senator-stock-graph/main/data/legislators-current.csv" AS row
-WITH row WHERE row.type = "sen"
-
-MATCH (s:Senator {name: row.full_name})
-SET s.party = row.party
-MERGE (st:State {name: row.state})
-MERGE (st)&lt;-[:REPRESENTS]-(s)<!--/code--></pre>
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[t:PURCHASED]-&gt;(c:Stock)
+WITH s.name AS senator, SUM(t.amount) AS totalPurchase
+RETURN senator, totalPurchase ORDER BY totalPurchase DESC<!--/code--></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>We can also aggregate by party:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[t:PURCHASED]-&gt;(c:Stock)
+WITH s.party AS party, SUM(t.amount) AS totalPurchase
+RETURN party, totalPurchase ORDER BY totalPurchase DESC<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>What senators are investing in companies based in their districts?</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[t:PURCHASED]-&gt;(c:Stock)
+MATCH (s)-[:REPRESENTS]-&gt;(st:State)&lt;-[:IN_STATE]-(c)
+RETURN *<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>What are the most common industries?</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable programlisting cm-s-neo code runnable standalone-example ng-binding" data-lang="cypher" lang="cypher"><!--code class="cypher language-cypher"-->MATCH (s:Senator)-[t:PURCHASED]-&gt;(c:Stock)-[:IN_INDUSTRY]-&gt;(i:Industry)
+WITH i.name AS industry, SUM(t.amount) AS totalInvested
+RETURN * ORDER BY totalInvested DESC<!--/code--></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Visually Exploration With Neo4j Bloom</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Neo4j Bloom allows us to visually explore the graph without needing to write Cypher.</p>
+</div>
+<div class="paragraph">
+<p>Bloom is available in Neo4j AuraDB and Neo4j Desktop by default.</p>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Next Steps&#8230;&#8203;</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Can we add additional data sources and query across the combined data sets in the graph? Specifically:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Senate committees: <code><a href="https://theunitedstates.io/congress-legislators/committees-current.json" class="bare">https://theunitedstates.io/congress-legislators/committees-current.json</a></code></p>
+</li>
+<li>
+<p>Committee members: <code><a href="https://theunitedstates.io/congress-legislators/committee-membership-current.json" class="bare">https://theunitedstates.io/congress-legislators/committee-membership-current.json</a></code></p>
+</li>
+<li>
+<p>Senate misconduct filings: <code><a href="https://github.com/govtrack/misconduct/blob/master/misconduct-instances.csv" class="bare">https://github.com/govtrack/misconduct/blob/master/misconduct-instances.csv</a></code></p>
+</li>
+<li>
+<p>Bill sponsorship and topics: <code><a href="https://github.com/unitedstates/congress/wiki/bills" class="bare">https://github.com/unitedstates/congress/wiki/bills</a></code></p>
+</li>
+</ul>
 </div>
 	</div>
   </div>
