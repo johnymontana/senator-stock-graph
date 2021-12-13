@@ -39,4 +39,4 @@ To load browser guide in Neo4j:
 
 ## Other Resources
 
-* [*Graphs In Data Journalism: Hands On With Neo4j Graph Database*](https://dev.neo4j.com/wrangler-neo4j) - presented at Brown Institute / Colombia Journalism School, Nov 2021
+* [*Graphs In Data Journalism: Hands On With Neo4j Graph Database*](https://dev.neo4j.com/wrangler-neo4j) - presented at Brown Institute / Columbia Journalism School, Nov 2021
